@@ -1,0 +1,3 @@
+Implement a RDBMS (Relational database management system). There should be support for declaring tables with a few column data types, CRUD operations, basic indexing and primary and unique keying and some joining. The interface should be SQL, and it should have an interactive REPL mode.
+ 
+Separately demonstrate the use of the RDBMS that you have implemented by writing a trivial web app that uses CRUD with the RDBMS created above (I have chosen to do a Bills Management Admin Panel).
