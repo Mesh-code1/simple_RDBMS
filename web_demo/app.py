@@ -638,6 +638,7 @@ def dashboard():
             err=err,
             view=view,
             bill_desc_by_id=bill_desc_by_id,
+            paid_total_by_bill_id=paid_total_by_bill_id,
         ),
         username=username,
         show_logout=True,
