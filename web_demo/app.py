@@ -594,13 +594,21 @@ def dashboard():
                 <tr>
                   <th>ID</th>
                   <th>Bill ID</th>
+                  <th>Description</th>
                   <th>Amount</th>
                   <th>Date</th>
                 </tr>
                 {% for p in payments %}
+                  {% set bill_desc = '' %}
+                  {% for b in bills %}
+                    {% if (b['id']|int) == (p['bill_id']|int) %}
+                      {% set bill_desc = b['description'] %}
+                    {% endif %}
+                  {% endfor %}
                   <tr>
                     <td>{{ p['id'] }}</td>
                     <td>{{ p['bill_id'] }}</td>
+                    <td>{{ bill_desc }}</td>
                     <td>{{ p['amount'] }}</td>
                     <td>{{ p['payment_date'] }}</td>
                   </tr>
