@@ -397,8 +397,8 @@ def dashboard():
                 <input name=\"amount\" placeholder=\"e.g. 1200.00\" required />
               </div>
               <div>
-                <label>Due month</label>
-                <input name=\"due_month\" type=\"month\" required />
+                <label>Due date</label>
+                <input name=\"due_date\" type=\"date\" required />
               </div>
             </div>
             <button class=\"btn btn-primary\" type=\"submit\">Add bill</button>
