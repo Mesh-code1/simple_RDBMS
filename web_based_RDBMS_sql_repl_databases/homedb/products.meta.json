@@ -1,0 +1,23 @@
+{
+  "name": "products",
+  "columns": [
+    {
+      "name": "id",
+      "dtype": "INT",
+      "primary": true,
+      "unique": true
+    },
+    {
+      "name": "name",
+      "dtype": "STRING",
+      "primary": false,
+      "unique": true
+    },
+    {
+      "name": "price",
+      "dtype": "FLOAT",
+      "primary": false,
+      "unique": false
+    }
+  ]
+}

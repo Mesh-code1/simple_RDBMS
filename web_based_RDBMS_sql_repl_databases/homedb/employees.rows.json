@@ -1,0 +1,74 @@
+[
+  {
+    "id": 1,
+    "email": "e1@corp.com",
+    "dept": "ENG",
+    "salary": 120.0
+  },
+  {
+    "id": 2,
+    "email": "e2@corp.com",
+    "dept": "ENG",
+    "salary": 121.0
+  },
+  {
+    "id": 3,
+    "email": "e3@corp.com",
+    "dept": "ENG",
+    "salary": 122.0
+  },
+  {
+    "id": 4,
+    "email": "e4@corp.com",
+    "dept": "HR",
+    "salary": 90.0
+  },
+  {
+    "id": 5,
+    "email": "e5@corp.com",
+    "dept": "HR",
+    "salary": 91.0
+  },
+  {
+    "id": 6,
+    "email": "e6@corp.com",
+    "dept": "SALES",
+    "salary": 80.0
+  },
+  {
+    "id": 7,
+    "email": "e7@corp.com",
+    "dept": "SALES",
+    "salary": 82.5
+  },
+  {
+    "id": 8,
+    "email": "e8@corp.com",
+    "dept": "OPS",
+    "salary": 95.0
+  },
+  {
+    "id": 9,
+    "email": "e9@corp.com",
+    "dept": "OPS",
+    "salary": 96.0
+  },
+  {
+    "id": 10,
+    "email": "e10@corp.com",
+    "dept": "ENG",
+    "salary": 130.0
+  },
+  {
+    "id": 11,
+    "email": "e11@corp.com",
+    "dept": "ENG",
+    "salary": 131.0
+  },
+  {
+    "id": 12,
+    "email": "e12@corp.com",
+    "dept": "HR",
+    "salary": 92.0
+  }
+]

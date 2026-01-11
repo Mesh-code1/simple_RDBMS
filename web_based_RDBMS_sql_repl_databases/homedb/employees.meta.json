@@ -1,0 +1,29 @@
+{
+  "name": "employees",
+  "columns": [
+    {
+      "name": "id",
+      "dtype": "INT",
+      "primary": true,
+      "unique": true
+    },
+    {
+      "name": "email",
+      "dtype": "STRING",
+      "primary": false,
+      "unique": true
+    },
+    {
+      "name": "dept",
+      "dtype": "STRING",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "salary",
+      "dtype": "FLOAT",
+      "primary": false,
+      "unique": false
+    }
+  ]
+}

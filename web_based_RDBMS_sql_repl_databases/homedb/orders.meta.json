@@ -1,0 +1,35 @@
+{
+  "name": "orders",
+  "columns": [
+    {
+      "name": "id",
+      "dtype": "INT",
+      "primary": true,
+      "unique": true
+    },
+    {
+      "name": "customer_id",
+      "dtype": "INT",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "product_id",
+      "dtype": "INT",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "qty",
+      "dtype": "INT",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "total",
+      "dtype": "FLOAT",
+      "primary": false,
+      "unique": false
+    }
+  ]
+}

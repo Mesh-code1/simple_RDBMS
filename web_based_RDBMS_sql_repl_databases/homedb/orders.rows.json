@@ -1,0 +1,16 @@
+[
+  {
+    "id": 100,
+    "customer_id": 1,
+    "product_id": 10,
+    "qty": 3,
+    "total": 136.5
+  },
+  {
+    "id": 102,
+    "customer_id": 2,
+    "product_id": 12,
+    "qty": 1,
+    "total": 150.0
+  }
+]

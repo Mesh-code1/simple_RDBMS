@@ -1,0 +1,23 @@
+{
+  "name": "customers",
+  "columns": [
+    {
+      "name": "id",
+      "dtype": "INT",
+      "primary": true,
+      "unique": true
+    },
+    {
+      "name": "name",
+      "dtype": "STRING",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "email",
+      "dtype": "STRING",
+      "primary": false,
+      "unique": true
+    }
+  ]
+}

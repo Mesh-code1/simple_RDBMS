@@ -21,8 +21,19 @@ _DEFAULT_DB_NAME = "default"
 _DB_ROOT_DIR = "./web_based_RDBMS_sql_repl_databases"
 
 
-def _safe_db_name(name: str) -> str:
+def _normalize_db_name(name: str) -> str:
     s = (name or "").strip()
+    while s.endswith(";"):
+        s = s[:-1].rstrip()
+    if len(s) >= 2 and ((s[0] == "'" and s[-1] == "'") or (s[0] == '"' and s[-1] == '"')):
+        s = s[1:-1].strip()
+    if len(s) >= 2 and s[0] == "`" and s[-1] == "`":
+        s = s[1:-1].strip()
+    return s
+
+
+def _safe_db_name(name: str) -> str:
+    s = _normalize_db_name(name)
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", s):
         raise ValueError("Invalid database name")
     return s

@@ -414,6 +414,18 @@ def dashboard():
 
     bill_desc_by_id = {int(b.get("id")): str(b.get("description") or "") for b in bills if b.get("id") is not None}
 
+    paid_total_by_bill_id: Dict[int, float] = {}
+    for p in payments:
+        try:
+            bid = int(p.get("bill_id"))
+        except Exception:
+            continue
+        try:
+            amt = float(p.get("amount") or 0)
+        except Exception:
+            amt = 0.0
+        paid_total_by_bill_id[bid] = paid_total_by_bill_id.get(bid, 0.0) + amt
+
     last_err = session.pop("last_error", "")
     if err == "" and last_err:
         err = last_err
@@ -517,12 +529,6 @@ def dashboard():
                 </tr>
                 {% for b in bills %}
                   {% set overdue = b['due_date'] < today and b['status'] != 'paid' %}
-                  {% set paid_total = 0.0 %}
-                  {% for p in payments %}
-                    {% if (p['bill_id']|int) == (b['id']|int) %}
-                      {% set paid_total = paid_total + ((p['amount'] or 0)|float) %}
-                    {% endif %}
-                  {% endfor %}
                   {% set form_id = 'billform' ~ b['id'] %}
                   <tr style=\"background: {{ 'rgba(239, 68, 68, 0.08)' if overdue else 'transparent' }}\">
                     <td>{{ b['id'] }}</td>
@@ -532,7 +538,7 @@ def dashboard():
                     <td>
                       <input form=\"{{ form_id }}\" name=\"amount\" value=\"{{ b['amount'] }}\" required style=\"max-width: 120px\" />
                     </td>
-                    <td>{{ paid_total }}</td>
+                    <td>{{ paid_total_by_bill_id.get(b['id']|int, 0.0) }}</td>
                     <td>
                       <input form=\"{{ form_id }}\" name=\"due_date\" type=\"date\" value=\"{{ b['due_date'] }}\" required style=\"max-width: 160px\" />
                     </td>

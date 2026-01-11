@@ -5,6 +5,6 @@
     "description": "Rent",
     "amount": 15000.0,
     "due_date": "2026-02-07",
-    "status": "unpaid"
+    "status": "paid"
   }
 ]
