@@ -308,7 +308,7 @@ def login():
         <div class=\"footer-note\">No account? <a href=\"{{ url_for('register') }}\">Create one</a>.</div>
       </div>
     """
-    return _render_page(title="Login", body=body)
+    return _render_page(title="Login", body=render_template_string(body))
 
 
 @app.post("/login")
@@ -358,7 +358,7 @@ def register():
         <div class=\"footer-note\"><a href=\"{{ url_for('login') }}\">Back to login</a></div>
       </div>
     """
-    return _render_page(title="Register", body=body)
+    return _render_page(title="Register", body=render_template_string(body))
 
 
 @app.post("/register")
