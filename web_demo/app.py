@@ -370,6 +370,10 @@ def dashboard():
     else:
         err = ""
 
+    last_err = session.pop("last_error", "")
+    if err == "" and last_err:
+        err = last_err
+
     token = session.get("token")
     username = ""
     try:
@@ -483,11 +487,20 @@ def add_bill():
         if due_month != "":
             due_date = f"{due_month}-01"
 
+    description_sql = description.replace("'", "''")
+    due_date_sql = due_date.replace("'", "''")
+    amount_sql = amount.replace(",", "").strip()
+
     bill_id = db._next_int_id("bills")
-    db.execute(
-        f"INSERT INTO bills (id, description, amount, due_date, status) VALUES ({bill_id}, '{description}', {amount}, '{due_date}', 'pending');",
-        session.get("token"),
-    )
+    try:
+        db.execute(
+            f"INSERT INTO bills (id, description, amount, due_date, status) VALUES ({bill_id}, '{description_sql}', {amount_sql}, '{due_date_sql}', 'pending');",
+            session.get("token"),
+        )
+    except MiniDBError as e:
+        session["last_error"] = str(e)
+    except Exception as e:
+        session["last_error"] = str(e)
     return redirect(url_for("dashboard"))
 
 

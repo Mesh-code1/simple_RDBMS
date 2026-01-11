@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "id": 1,
+    "user_id": 2,
+    "bill_id": 1,
+    "amount": 600.0,
+    "payment_date": "2026-01-11"
+  }
+]

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .auth import Authenticator
 from .errors import AuthError, SchemaError
@@ -163,12 +163,16 @@ class MiniDB:
 
         raise SchemaError("Unsupported AST")
 
-    def _and_where(self, a: Optional[Tuple[str, str, Any]], b: Tuple[str, str, Any]) -> Tuple[str, str, Any]:
+    def _and_where(
+        self,
+        a: Optional[Union[Tuple[str, str, Any], List[Tuple[str, str, Any]]]],
+        b: Tuple[str, str, Any],
+    ) -> Union[Tuple[str, str, Any], List[Tuple[str, str, Any]]]:
         if a is None:
             return b
-        if a[0] == b[0] and a[1] == "=" and b[1] == "=":
-            return a
-        raise SchemaError("Only one WHERE condition supported")
+        if isinstance(a, list):
+            return a + [b]
+        return [a, b]
 
     def _is_admin(self, user_id: int) -> bool:
         if not self.enable_auth:

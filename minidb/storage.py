@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .errors import ConstraintViolation, SchemaError
 
@@ -155,9 +155,7 @@ class Table:
                 continue
             self._indexes[col][v] = idx
 
-    def _match_where(self, row: Dict[str, Any], where: Optional[Tuple[str, str, Any]]) -> bool:
-        if where is None:
-            return True
+    def _match_single_where(self, row: Dict[str, Any], where: Tuple[str, str, Any]) -> bool:
         col, op, val = where
         if col not in self.schema:
             raise SchemaError(f"Unknown column: {col}")
@@ -171,7 +169,25 @@ class Table:
             return left is not None and right is not None and left < right
         raise SchemaError(f"Unsupported operator: {op}")
 
-    def select(self, columns: Optional[List[str]] = None, where: Optional[Tuple[str, str, Any]] = None) -> List[Dict[str, Any]]:
+    def _match_where(
+        self,
+        row: Dict[str, Any],
+        where: Optional[Union[Tuple[str, str, Any], List[Tuple[str, str, Any]]]],
+    ) -> bool:
+        if where is None:
+            return True
+        if isinstance(where, list):
+            for w in where:
+                if not self._match_single_where(row, w):
+                    return False
+            return True
+        return self._match_single_where(row, where)
+
+    def select(
+        self,
+        columns: Optional[List[str]] = None,
+        where: Optional[Union[Tuple[str, str, Any], List[Tuple[str, str, Any]]]] = None,
+    ) -> List[Dict[str, Any]]:
         if columns is None:
             columns = list(self.schema.keys())
         for c in columns:
@@ -180,12 +196,22 @@ class Table:
         if columns == ["*"]:
             columns = list(self.schema.keys())
 
-        if where and where[1] == "=" and where[0] in self._indexes:
-            col, _, val = where
+        index_where: Optional[Tuple[str, str, Any]] = None
+        if isinstance(where, list):
+            for w in where:
+                if w[1] == "=" and w[0] in self._indexes:
+                    index_where = w
+                    break
+        else:
+            index_where = where
+
+        if index_where and index_where[1] == "=" and index_where[0] in self._indexes:
+            col, _, val = index_where
             v = _coerce_value(val, self.schema[col])
             if v in self._indexes[col]:
                 row = self._rows[self._indexes[col][v]]
-                return [{c: row.get(c) for c in columns}]
+                if self._match_where(row, where):
+                    return [{c: row.get(c) for c in columns}]
             return []
 
         out: List[Dict[str, Any]] = []
@@ -194,7 +220,11 @@ class Table:
                 out.append({c: row.get(c) for c in columns})
         return out
 
-    def update(self, updates: Dict[str, Any], where: Optional[Tuple[str, str, Any]] = None) -> int:
+    def update(
+        self,
+        updates: Dict[str, Any],
+        where: Optional[Union[Tuple[str, str, Any], List[Tuple[str, str, Any]]]] = None,
+    ) -> int:
         for col in updates:
             if col not in self.schema:
                 raise SchemaError(f"Unknown column: {col}")
@@ -216,7 +246,7 @@ class Table:
         self._rebuild_indexes()
         return count
 
-    def delete(self, where: Optional[Tuple[str, str, Any]] = None) -> int:
+    def delete(self, where: Optional[Union[Tuple[str, str, Any], List[Tuple[str, str, Any]]]] = None) -> int:
         kept: List[Dict[str, Any]] = []
         removed = 0
         for row in self._rows:
