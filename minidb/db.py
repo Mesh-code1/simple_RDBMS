@@ -88,6 +88,10 @@ class MiniDB:
         ast = parse(sql)
         t = ast["type"]
 
+        is_admin = True
+        if self.enable_auth:
+            is_admin = self._is_admin(session.user_id)
+
         if t == "CREATE_TABLE":
             cols = [
                 Column(
@@ -104,7 +108,7 @@ class MiniDB:
         if t == "INSERT":
             table = self.catalog.get_table(ast["table"])
             row = dict(ast["row"])
-            if self.enable_auth and "user_id" in table.schema and "user_id" not in row:
+            if self.enable_auth and "user_id" in table.schema and not is_admin:
                 row["user_id"] = session.user_id
             table.insert(row)
             table.persist()
@@ -114,7 +118,7 @@ class MiniDB:
             if ast.get("join") is None:
                 table = self.catalog.get_table(ast["table"])
                 where = ast.get("where")
-                if self.enable_auth and "user_id" in table.schema and not self._is_admin(session.user_id):
+                if self.enable_auth and "user_id" in table.schema and not is_admin:
                     where = self._and_where(where, ("user_id", "=", session.user_id))
                 return table.select(ast.get("columns"), where)
 
@@ -123,14 +127,21 @@ class MiniDB:
             right = self.catalog.get_table(join["table"])
 
             where_left = ast.get("where")
-            if self.enable_auth and "user_id" in left.schema and not self._is_admin(session.user_id):
+            if self.enable_auth and "user_id" in left.schema and not is_admin:
                 where_left = self._and_where(where_left, ("user_id", "=", session.user_id))
+
+            where_right = None
+            if self.enable_auth and "user_id" in right.schema and not is_admin:
+                where_right = ("user_id", "=", session.user_id)
 
             left_rows = left.select(["*"], where_left)
             results: List[Dict[str, Any]] = []
             for lr in left_rows:
                 lv = lr.get(join["left"])
-                rr = right.select(["*"], (join["right"], "=", lv))
+                join_cond: Union[Tuple[str, str, Any], List[Tuple[str, str, Any]]] = (join["right"], "=", lv)
+                if where_right is not None:
+                    join_cond = self._and_where(join_cond, where_right)
+                rr = right.select(["*"], join_cond)
                 for rrow in rr:
                     merged = {**{f"{left.name}.{k}": v for k, v in lr.items()}, **{f"{right.name}.{k}": v for k, v in rrow.items()}}
                     results.append(merged)
@@ -146,7 +157,9 @@ class MiniDB:
         if t == "UPDATE":
             table = self.catalog.get_table(ast["table"])
             where = ast.get("where")
-            if self.enable_auth and "user_id" in table.schema and not self._is_admin(session.user_id):
+            if self.enable_auth and "user_id" in table.schema and not is_admin:
+                if "user_id" in ast["updates"]:
+                    raise SchemaError("Cannot update user_id")
                 where = self._and_where(where, ("user_id", "=", session.user_id))
             n = table.update(ast["updates"], where)
             table.persist()
@@ -155,7 +168,7 @@ class MiniDB:
         if t == "DELETE":
             table = self.catalog.get_table(ast["table"])
             where = ast.get("where")
-            if self.enable_auth and "user_id" in table.schema and not self._is_admin(session.user_id):
+            if self.enable_auth and "user_id" in table.schema and not is_admin:
                 where = self._and_where(where, ("user_id", "=", session.user_id))
             n = table.delete(where)
             table.persist()
