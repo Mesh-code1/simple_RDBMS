@@ -249,6 +249,8 @@ def _require_auth():
 
 
 def _sum_payments_for_bill(token: str, bill_id: int) -> float:
+    if not token:
+        return 0.0
     try:
         payments = db.execute(f"SELECT * FROM payments WHERE bill_id={bill_id};", token)
     except MiniDBError:
@@ -263,6 +265,8 @@ def _sum_payments_for_bill(token: str, bill_id: int) -> float:
 
 
 def _recompute_bill_status(token: str, bill_id: int) -> None:
+    if not token:
+        return
     bills = db.execute(f"SELECT * FROM bills WHERE id={bill_id};", token)
     if not bills:
         return
@@ -407,6 +411,8 @@ def dashboard():
         payments = db.execute("SELECT * FROM payments;", session.get("token"))
     except MiniDBError:
         payments = []
+
+    bill_desc_by_id = {int(b.get("id")): str(b.get("description") or "") for b in bills if b.get("id") is not None}
 
     last_err = session.pop("last_error", "")
     if err == "" and last_err:
@@ -599,16 +605,10 @@ def dashboard():
                   <th>Date</th>
                 </tr>
                 {% for p in payments %}
-                  {% set bill_desc = '' %}
-                  {% for b in bills %}
-                    {% if (b['id']|int) == (p['bill_id']|int) %}
-                      {% set bill_desc = b['description'] %}
-                    {% endif %}
-                  {% endfor %}
                   <tr>
                     <td>{{ p['id'] }}</td>
                     <td>{{ p['bill_id'] }}</td>
-                    <td>{{ bill_desc }}</td>
+                    <td>{{ bill_desc_by_id.get(p['bill_id']|int, '') }}</td>
                     <td>{{ p['amount'] }}</td>
                     <td>{{ p['payment_date'] }}</td>
                   </tr>
@@ -624,7 +624,15 @@ def dashboard():
     """
     return _render_page(
         title="Dashboard",
-        body=render_template_string(body, bills=bills, payments=payments, today=today, err=err, view=view),
+        body=render_template_string(
+            body,
+            bills=bills,
+            payments=payments,
+            today=today,
+            err=err,
+            view=view,
+            bill_desc_by_id=bill_desc_by_id,
+        ),
         username=username,
         show_logout=True,
     )
@@ -667,6 +675,16 @@ def pay_bill(bill_id: int):
     if uid is None:
         return redirect(url_for("login"))
 
+    token = session.get("token")
+    try:
+        owned = db.execute(f"SELECT * FROM bills WHERE id={bill_id};", token)
+    except MiniDBError as e:
+        session["last_error"] = str(e)
+        return redirect(url_for("dashboard", view="bills"))
+    if not owned:
+        session["last_error"] = "Bill not found"
+        return redirect(url_for("dashboard", view="bills"))
+
     amt = request.form.get("amount", "").strip()
     payment_id = db._next_int_id("payments")
     today = date.today().isoformat()
@@ -675,9 +693,9 @@ def pay_bill(bill_id: int):
 
     db.execute(
         f"INSERT INTO payments (id, bill_id, amount, payment_date) VALUES ({payment_id}, {bill_id}, {amt_sql}, '{today}');",
-        session.get("token"),
+        token,
     )
-    _recompute_bill_status(session.get("token"), bill_id)
+    _recompute_bill_status(token, bill_id)
     return redirect(url_for("dashboard"))
 
 
@@ -686,6 +704,8 @@ def make_payment():
     uid = _require_auth()
     if uid is None:
         return redirect(url_for("login"))
+
+    token = session.get("token")
     bill_id = request.form.get("bill_id", "").strip()
     amt = request.form.get("amount", "").strip()
     try:
@@ -697,11 +717,15 @@ def make_payment():
     today = date.today().isoformat()
     amt_sql = amt.replace(",", "").strip()
     try:
+        owned = db.execute(f"SELECT * FROM bills WHERE id={bid};", token)
+        if not owned:
+            session["last_error"] = "Bill not found"
+            return redirect(url_for("dashboard", view="payments"))
         db.execute(
             f"INSERT INTO payments (id, bill_id, amount, payment_date) VALUES ({payment_id}, {bid}, {amt_sql}, '{today}');",
-            session.get("token"),
+            token,
         )
-        _recompute_bill_status(session.get("token"), bid)
+        _recompute_bill_status(token, bid)
     except MiniDBError as e:
         session["last_error"] = str(e)
     except Exception as e:
