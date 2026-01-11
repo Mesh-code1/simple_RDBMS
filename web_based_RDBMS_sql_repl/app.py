@@ -218,14 +218,14 @@ INDEX_HTML = """
         </div>
       </div>
 
-      <div class=\"grid\">
-        <div class=\"split\">
-          <div class=\"panel\">
-            <div class=\"panel-header\">
+      <div class="grid">
+        <div class="split">
+          <div class="panel">
+            <div class="panel-header">
               <h2>SQL Script</h2>
-              <div class=\"muted\">Supports multiple statements separated by <code>;</code></div>
+              <div class="muted">Supports multiple statements separated by <code>;</code></div>
             </div>
-            <textarea id=\"sql\">-- MiniDB SQL Workshop (run step-by-step)
+            <textarea id="sql">-- MiniDB SQL Workshop (run step-by-step)
 -- Supported: CREATE TABLE, INSERT, SELECT, SELECT JOIN, UPDATE, DELETE
 -- Types: INT, STRING, FLOAT
 -- Constraints: PRIMARY, UNIQUE
@@ -234,6 +234,7 @@ INDEX_HTML = """
 CREATE TABLE customers (id INT PRIMARY UNIQUE, name STRING, email STRING UNIQUE);
 CREATE TABLE products (id INT PRIMARY UNIQUE, name STRING UNIQUE, price FLOAT);
 CREATE TABLE orders (id INT PRIMARY UNIQUE, customer_id INT, product_id INT, qty INT, total FLOAT);
+CREATE TABLE employees (id INT PRIMARY UNIQUE, email STRING UNIQUE, dept STRING, salary FLOAT);
 
 -- 2) SEED DATA (INSERT)
 INSERT INTO customers (id, name, email) VALUES (1, 'Amina', 'amina@example.com');
@@ -242,6 +243,22 @@ INSERT INTO customers (id, name, email) VALUES (2, 'Omar', 'omar@example.com');
 INSERT INTO products (id, name, price) VALUES (10, 'Keyboard', 45.50);
 INSERT INTO products (id, name, price) VALUES (11, 'Mouse', 18.00);
 INSERT INTO products (id, name, price) VALUES (12, 'Monitor', 150.00);
+
+-- Indexing demo dataset (more rows):
+-- MiniDB maintains an internal index for PRIMARY/UNIQUE columns.
+-- Here: employees.id (PRIMARY/UNIQUE) and employees.email (UNIQUE) are indexed.
+INSERT INTO employees (id, email, dept, salary) VALUES (1, 'e1@corp.com', 'ENG', 120.0);
+INSERT INTO employees (id, email, dept, salary) VALUES (2, 'e2@corp.com', 'ENG', 121.0);
+INSERT INTO employees (id, email, dept, salary) VALUES (3, 'e3@corp.com', 'ENG', 122.0);
+INSERT INTO employees (id, email, dept, salary) VALUES (4, 'e4@corp.com', 'HR', 90.0);
+INSERT INTO employees (id, email, dept, salary) VALUES (5, 'e5@corp.com', 'HR', 91.0);
+INSERT INTO employees (id, email, dept, salary) VALUES (6, 'e6@corp.com', 'SALES', 80.0);
+INSERT INTO employees (id, email, dept, salary) VALUES (7, 'e7@corp.com', 'SALES', 82.5);
+INSERT INTO employees (id, email, dept, salary) VALUES (8, 'e8@corp.com', 'OPS', 95.0);
+INSERT INTO employees (id, email, dept, salary) VALUES (9, 'e9@corp.com', 'OPS', 96.0);
+INSERT INTO employees (id, email, dept, salary) VALUES (10, 'e10@corp.com', 'ENG', 130.0);
+INSERT INTO employees (id, email, dept, salary) VALUES (11, 'e11@corp.com', 'ENG', 131.0);
+INSERT INTO employees (id, email, dept, salary) VALUES (12, 'e12@corp.com', 'HR', 92.0);
 
 -- Orders (total is precomputed here; MiniDB doesn't support expressions)
 INSERT INTO orders (id, customer_id, product_id, qty, total) VALUES (100, 1, 10, 2, 91.00);
@@ -277,13 +294,18 @@ UPDATE orders SET qty=3, total=136.50 WHERE id=100;
 DELETE FROM orders WHERE id=101;
 SELECT * FROM orders;
 
--- 9) BASIC "INDEX" behavior demo (MiniDB uses UNIQUE columns as indexes)
--- These queries use equality on UNIQUE columns.
+-- 9) BASIC "INDEX" behavior demo
+-- Indexed lookups (PRIMARY/UNIQUE):
 SELECT * FROM customers WHERE email = 'amina@example.com';
 SELECT * FROM products WHERE name = 'Keyboard';
+SELECT * FROM employees WHERE id = 10;
+SELECT * FROM employees WHERE email = 'e7@corp.com';
+-- Non-indexed lookup (dept is NOT UNIQUE): this requires scanning matching rows.
+SELECT * FROM employees WHERE dept = 'ENG';
 
 -- 10) CLEANUP (remove the seeded data)
 -- Note: DROP TABLE is not supported; we delete rows instead.
+DELETE FROM employees;
 DELETE FROM orders;
 DELETE FROM products;
 DELETE FROM customers;
@@ -292,13 +314,14 @@ DELETE FROM customers;
 SELECT * FROM customers;
 SELECT * FROM products;
 SELECT * FROM orders;
+SELECT * FROM employees;
 </textarea>
           </div>
 
-          <div class=\"panel\">
-            <div class=\"panel-header\">
+          <div class="panel">
+            <div class="panel-header">
               <h2>Live Data</h2>
-              <div class=\"muted\">Tables + sample rows</div>
+              <div class="muted">Tables + sample rows</div>
             </div>
             <div class=\"output\" id=\"live\">Loading…</div>
           </div>
