@@ -248,6 +248,34 @@ def _require_auth():
         return None
 
 
+def _sum_payments_for_bill(token: str, bill_id: int) -> float:
+    try:
+        payments = db.execute(f"SELECT * FROM payments WHERE bill_id={bill_id};", token)
+    except MiniDBError:
+        return 0.0
+    total = 0.0
+    for p in payments:
+        try:
+            total += float(p.get("amount") or 0)
+        except Exception:
+            total += 0.0
+    return total
+
+
+def _recompute_bill_status(token: str, bill_id: int) -> None:
+    bills = db.execute(f"SELECT * FROM bills WHERE id={bill_id};", token)
+    if not bills:
+        return
+    bill = bills[0]
+    try:
+        bill_amount = float(bill.get("amount") or 0)
+    except Exception:
+        bill_amount = 0.0
+    paid_total = _sum_payments_for_bill(token, int(bill.get("id") or bill_id))
+    new_status = "paid" if paid_total >= bill_amount and bill_amount > 0 else "unpaid"
+    db.execute(f"UPDATE bills SET status='{new_status}' WHERE id={bill_id};", token)
+
+
 @app.get("/")
 def home():
     if _require_auth() is None:
@@ -362,6 +390,11 @@ def dashboard():
     if uid is None:
         return redirect(url_for("login"))
     _init_schema()
+
+    view = request.args.get("view", "bills").strip().lower()
+    if view not in {"add", "bills", "payments"}:
+        view = "bills"
+
     try:
         bills = db.execute("SELECT * FROM bills;", session.get("token"))
     except MiniDBError as e:
@@ -369,6 +402,11 @@ def dashboard():
         err = str(e)
     else:
         err = ""
+
+    try:
+        payments = db.execute("SELECT * FROM payments;", session.get("token"))
+    except MiniDBError:
+        payments = []
 
     last_err = session.pop("last_error", "")
     if err == "" and last_err:
@@ -383,91 +421,202 @@ def dashboard():
         username = ""
 
     today = date.today().isoformat()
+
     body = """
-      <div class=\"grid grid-2\">
-        <div class=\"card\">
-          <h2>Add bill</h2>
-          <div class=\"subtle\">Create a bill record (ownership enforced by <span class=\"muted\">user_id</span>).</div>
-          {% if err %}<div class=\"alert\">{{ err }}</div>{% endif %}
-          <div style=\"height: 12px\"></div>
-          <form method=\"post\" action=\"{{ url_for('add_bill') }}\" class=\"form\">
-            <div>
-              <label>Description</label>
-              <input name=\"description\" placeholder=\"e.g. Rent\" required />
-            </div>
-            <div class=\"row row-2\">
-              <div>
-                <label>Amount</label>
-                <input name=\"amount\" placeholder=\"e.g. 1200.00\" required />
-              </div>
-              <div>
-                <label>Due date</label>
-                <input name=\"due_date\" type=\"date\" required />
-              </div>
-            </div>
-            <button class=\"btn btn-primary\" type=\"submit\">Add bill</button>
-          </form>
-          <div class=\"footer-note\">Tip: Pay a bill to generate a payment record and mark it as paid.</div>
+      <style>
+        .shell { display: grid; grid-template-columns: 1fr; gap: 16px; }
+        @media (min-width: 980px) { .shell { grid-template-columns: 280px 1fr; } }
+        .sidebar { position: sticky; top: 18px; height: fit-content; }
+        .navlist { display: grid; gap: 8px; margin-top: 12px; }
+        .navitem {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 12px;
+          border-radius: 12px;
+          border: 1px solid var(--border);
+          background: rgba(255, 255, 255, 0.04);
+          color: var(--text);
+          text-decoration: none;
+        }
+        .navitem:hover { background: rgba(255, 255, 255, 0.07); }
+        .navitem.active { border-color: rgba(167, 139, 250, 0.55); background: rgba(124, 58, 237, 0.12); }
+        .content-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+        .small { font-size: 12px; color: var(--muted); }
+      </style>
+
+      <div class=\"shell\">
+        <div class=\"card sidebar\">
+          <h2 style=\"margin-bottom: 6px\">Dashboard</h2>
+          <div class=\"subtle\">Manage bills and payments.</div>
+          <div class=\"navlist\">
+            <a class=\"navitem {{ 'active' if view=='add' else '' }}\" href=\"{{ url_for('dashboard', view='add') }}\">Add bill<span class=\"small\">+</span></a>
+            <a class=\"navitem {{ 'active' if view=='bills' else '' }}\" href=\"{{ url_for('dashboard', view='bills') }}\">Manage bills<span class=\"small\">{{ bills|length }}</span></a>
+            <a class=\"navitem {{ 'active' if view=='payments' else '' }}\" href=\"{{ url_for('dashboard', view='payments') }}\">Payments<span class=\"small\">{{ payments|length }}</span></a>
+          </div>
+          <div class=\"footer-note\">Today: <strong>{{ today }}</strong></div>
         </div>
 
-        <div class=\"card\">
-          <div style=\"display:flex; align-items:flex-end; justify-content:space-between; gap: 10px; flex-wrap: wrap\">
-            <div>
-              <h2 style=\"margin-bottom: 6px\">Your bills</h2>
-              <div class=\"subtle\">Overdue items are highlighted.</div>
-            </div>
-            <div class=\"pill\">Today: <strong>{{ today }}</strong></div>
-          </div>
+        <div class=\"grid\">
+          {% if err %}<div class=\"alert\">{{ err }}</div>{% endif %}
 
-          <div style=\"height: 12px\"></div>
-          <table class=\"table\">
-            <tr>
-              <th>ID</th>
-              <th>Description</th>
-              <th>Amount</th>
-              <th>Due</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-            {% for b in bills %}
-              {% set overdue = b['due_date'] < today and b['status'] != 'paid' %}
-              <tr style=\"background: {{ 'rgba(239, 68, 68, 0.08)' if overdue else 'transparent' }}\">
-                <td>{{ b['id'] }}</td>
-                <td>{{ b['description'] }}</td>
-                <td>{{ b['amount'] }}</td>
-                <td>{{ b['due_date'] }}</td>
-                <td>
-                  {% if b['status'] == 'paid' %}
-                    <span class=\"badge badge-success\">Paid</span>
-                  {% elif overdue %}
-                    <span class=\"badge badge-danger\">Overdue</span>
-                  {% else %}
-                    <span class=\"badge badge-warning\">{{ b['status'] }}</span>
-                  {% endif %}
-                </td>
-                <td>
-                  <div class=\"actions\">
-                    <form method=\"post\" action=\"{{ url_for('pay_bill', bill_id=b['id']) }}\">
-                      <input name=\"amount\" placeholder=\"payment amount\" required style=\"max-width: 160px\" />
-                      <button class=\"btn btn-sm btn-success\" type=\"submit\">Pay</button>
-                    </form>
-                    <form method=\"post\" action=\"{{ url_for('delete_bill', bill_id=b['id']) }}\">
-                      <button class=\"btn btn-sm btn-danger\" type=\"submit\">Delete</button>
-                    </form>
+          {% if view == 'add' %}
+            <div class=\"card\">
+              <div class=\"content-header\">
+                <div>
+                  <h2 style=\"margin-bottom: 6px\">Add bill</h2>
+                  <div class=\"subtle\">Create a bill record (ownership enforced by <span class=\"muted\">user_id</span>).</div>
+                </div>
+              </div>
+              <div style=\"height: 12px\"></div>
+              <form method=\"post\" action=\"{{ url_for('add_bill') }}\" class=\"form\">
+                <div>
+                  <label>Description</label>
+                  <input name=\"description\" placeholder=\"e.g. Rent\" required />
+                </div>
+                <div class=\"row row-2\">
+                  <div>
+                    <label>Amount</label>
+                    <input name=\"amount\" placeholder=\"e.g. 1200.00\" required />
                   </div>
-                </td>
-              </tr>
-            {% endfor %}
-          </table>
-          {% if bills|length == 0 %}
-            <div class=\"footer-note\">No bills yet. Add one from the form on the left.</div>
+                  <div>
+                    <label>Due date</label>
+                    <input name=\"due_date\" type=\"date\" required />
+                  </div>
+                </div>
+                <button class=\"btn btn-primary\" type=\"submit\">Add bill</button>
+              </form>
+              <div class=\"footer-note\">Tip: Payments are tracked separately; the bill becomes paid only when total payments cover the bill amount.</div>
+            </div>
+          {% endif %}
+
+          {% if view == 'bills' %}
+            <div class=\"card\">
+              <div class=\"content-header\">
+                <div>
+                  <h2 style=\"margin-bottom: 6px\">Manage bills</h2>
+                  <div class=\"subtle\">Edit, set status, pay, or delete.</div>
+                </div>
+              </div>
+              <div style=\"height: 12px\"></div>
+              <table class=\"table\">
+                <tr>
+                  <th>ID</th>
+                  <th>Description</th>
+                  <th>Amount</th>
+                  <th>Paid total</th>
+                  <th>Due</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+                {% for b in bills %}
+                  {% set overdue = b['due_date'] < today and b['status'] != 'paid' %}
+                  {% set paid_total = 0.0 %}
+                  {% for p in payments %}
+                    {% if (p['bill_id']|int) == (b['id']|int) %}
+                      {% set paid_total = paid_total + ((p['amount'] or 0)|float) %}
+                    {% endif %}
+                  {% endfor %}
+                  {% set form_id = 'billform' ~ b['id'] %}
+                  <tr style=\"background: {{ 'rgba(239, 68, 68, 0.08)' if overdue else 'transparent' }}\">
+                    <td>{{ b['id'] }}</td>
+                    <td>
+                      <input form=\"{{ form_id }}\" name=\"description\" value=\"{{ b['description'] }}\" required style=\"max-width: 220px\" />
+                    </td>
+                    <td>
+                      <input form=\"{{ form_id }}\" name=\"amount\" value=\"{{ b['amount'] }}\" required style=\"max-width: 120px\" />
+                    </td>
+                    <td>{{ paid_total }}</td>
+                    <td>
+                      <input form=\"{{ form_id }}\" name=\"due_date\" type=\"date\" value=\"{{ b['due_date'] }}\" required style=\"max-width: 160px\" />
+                    </td>
+                    <td>
+                      <select form=\"{{ form_id }}\" name=\"status\" class=\"btn btn-sm\" style=\"padding: 10px 12px\">
+                        <option value=\"paid\" {{ 'selected' if b['status']=='paid' else '' }}>paid</option>
+                        <option value=\"unpaid\" {{ 'selected' if b['status']=='unpaid' else '' }}>unpaid</option>
+                        <option value=\"pending\" {{ 'selected' if b['status']=='pending' else '' }}>pending</option>
+                      </select>
+                    </td>
+                    <td>
+                      <div class=\"actions\">
+                        <form id=\"{{ form_id }}\" method=\"post\" action=\"{{ url_for('update_bill', bill_id=b['id']) }}\"></form>
+                        <button form=\"{{ form_id }}\" class=\"btn btn-sm\" type=\"submit\">Save</button>
+                        <form method=\"post\" action=\"{{ url_for('pay_bill', bill_id=b['id']) }}\">
+                          <input name=\"amount\" placeholder=\"payment amount\" required style=\"max-width: 160px\" />
+                          <button class=\"btn btn-sm btn-success\" type=\"submit\">Pay</button>
+                        </form>
+                        <form method=\"post\" action=\"{{ url_for('delete_bill', bill_id=b['id']) }}\">
+                          <button class=\"btn btn-sm btn-danger\" type=\"submit\">Delete</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </table>
+              {% if bills|length == 0 %}
+                <div class=\"footer-note\">No bills yet. Use “Add bill” from the sidebar.</div>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          {% if view == 'payments' %}
+            <div class=\"card\">
+              <div class=\"content-header\">
+                <div>
+                  <h2 style=\"margin-bottom: 6px\">Payments</h2>
+                  <div class=\"subtle\">Record payments and review history.</div>
+                </div>
+              </div>
+              <div style=\"height: 12px\"></div>
+              <form method=\"post\" action=\"{{ url_for('make_payment') }}\" class=\"form\">
+                <div class=\"row row-3\">
+                  <div>
+                    <label>Bill</label>
+                    <select name=\"bill_id\" class=\"btn\" style=\"padding: 11px 12px\" required>
+                      {% for b in bills %}
+                        <option value=\"{{ b['id'] }}\">#{{ b['id'] }} - {{ b['description'] }} (amount {{ b['amount'] }})</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Amount</label>
+                    <input name=\"amount\" placeholder=\"e.g. 500.00\" required />
+                  </div>
+                  <div>
+                    <label>&nbsp;</label>
+                    <button class=\"btn btn-primary\" type=\"submit\">Make payment</button>
+                  </div>
+                </div>
+              </form>
+
+              <div style=\"height: 12px\"></div>
+              <table class=\"table\">
+                <tr>
+                  <th>ID</th>
+                  <th>Bill ID</th>
+                  <th>Amount</th>
+                  <th>Date</th>
+                </tr>
+                {% for p in payments %}
+                  <tr>
+                    <td>{{ p['id'] }}</td>
+                    <td>{{ p['bill_id'] }}</td>
+                    <td>{{ p['amount'] }}</td>
+                    <td>{{ p['payment_date'] }}</td>
+                  </tr>
+                {% endfor %}
+              </table>
+              {% if payments|length == 0 %}
+                <div class=\"footer-note\">No payments yet.</div>
+              {% endif %}
+            </div>
           {% endif %}
         </div>
       </div>
     """
     return _render_page(
         title="Dashboard",
-        body=render_template_string(body, bills=bills, today=today, err=err),
+        body=render_template_string(body, bills=bills, payments=payments, today=today, err=err, view=view),
         username=username,
         show_logout=True,
     )
@@ -514,15 +663,71 @@ def pay_bill(bill_id: int):
     payment_id = db._next_int_id("payments")
     today = date.today().isoformat()
 
+    amt_sql = amt.replace(",", "").strip()
+
     db.execute(
-        f"INSERT INTO payments (id, bill_id, amount, payment_date) VALUES ({payment_id}, {bill_id}, {amt}, '{today}');",
+        f"INSERT INTO payments (id, bill_id, amount, payment_date) VALUES ({payment_id}, {bill_id}, {amt_sql}, '{today}');",
         session.get("token"),
     )
-    db.execute(
-        f"UPDATE bills SET status='paid' WHERE id={bill_id};",
-        session.get("token"),
-    )
+    _recompute_bill_status(session.get("token"), bill_id)
     return redirect(url_for("dashboard"))
+
+
+@app.post("/make_payment")
+def make_payment():
+    uid = _require_auth()
+    if uid is None:
+        return redirect(url_for("login"))
+    bill_id = request.form.get("bill_id", "").strip()
+    amt = request.form.get("amount", "").strip()
+    try:
+        bid = int(bill_id)
+    except Exception:
+        session["last_error"] = "Invalid bill id"
+        return redirect(url_for("dashboard", view="payments"))
+    payment_id = db._next_int_id("payments")
+    today = date.today().isoformat()
+    amt_sql = amt.replace(",", "").strip()
+    try:
+        db.execute(
+            f"INSERT INTO payments (id, bill_id, amount, payment_date) VALUES ({payment_id}, {bid}, {amt_sql}, '{today}');",
+            session.get("token"),
+        )
+        _recompute_bill_status(session.get("token"), bid)
+    except MiniDBError as e:
+        session["last_error"] = str(e)
+    except Exception as e:
+        session["last_error"] = str(e)
+    return redirect(url_for("dashboard", view="payments"))
+
+
+@app.post("/update_bill/<int:bill_id>")
+def update_bill(bill_id: int):
+    uid = _require_auth()
+    if uid is None:
+        return redirect(url_for("login"))
+
+    description = request.form.get("description", "").strip()
+    amount = request.form.get("amount", "").strip()
+    due_date = request.form.get("due_date", "").strip()
+    status = request.form.get("status", "").strip().lower()
+    if status not in {"paid", "unpaid", "pending"}:
+        status = "pending"
+
+    description_sql = description.replace("'", "''")
+    due_date_sql = due_date.replace("'", "''")
+    amount_sql = amount.replace(",", "").strip()
+
+    try:
+        db.execute(
+            f"UPDATE bills SET description='{description_sql}', amount={amount_sql}, due_date='{due_date_sql}', status='{status}' WHERE id={bill_id};",
+            session.get("token"),
+        )
+    except MiniDBError as e:
+        session["last_error"] = str(e)
+    except Exception as e:
+        session["last_error"] = str(e)
+    return redirect(url_for("dashboard", view="bills"))
 
 
 @app.post("/delete_bill/<int:bill_id>")
