@@ -225,8 +225,7 @@ INDEX_HTML = """
               <h2>SQL Script</h2>
               <div class=\"muted\">Supports multiple statements separated by <code>;</code></div>
             </div>
-            <textarea id=\"sql\">-- Example
-CREATE TABLE bills (id INT PRIMARY, description STRING, amount FLOAT);
+            <textarea id=\"sql\">CREATE TABLE bills (id INT PRIMARY, description STRING, amount FLOAT);
 INSERT INTO bills (id, description, amount) VALUES (1, 'Rent', 1200.0);
 SELECT * FROM bills;
 </textarea>
@@ -432,6 +431,17 @@ def _split_statements(sql: str) -> List[str]:
     return out
 
 
+def _strip_line_comments(sql: str) -> str:
+    lines = sql.splitlines()
+    kept: List[str] = []
+    for ln in lines:
+        s = ln.lstrip()
+        if s.startswith("--"):
+            continue
+        kept.append(ln)
+    return "\n".join(kept)
+
+
 def _result_payload(res: Any) -> Dict[str, Any]:
     if isinstance(res, list):
         return {"kind": "rows", "rows": res}
@@ -449,6 +459,7 @@ def index():
 def api_execute():
     data = request.get_json(silent=True) or {}
     sql = str(data.get("sql") or "")
+    sql = _strip_line_comments(sql)
     statements = _split_statements(sql)
     results: List[Dict[str, Any]] = []
 
