@@ -1,0 +1,41 @@
+{
+  "name": "bills",
+  "columns": [
+    {
+      "name": "id",
+      "dtype": "INT",
+      "primary": true,
+      "unique": false
+    },
+    {
+      "name": "user_id",
+      "dtype": "INT",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "description",
+      "dtype": "STRING",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "amount",
+      "dtype": "FLOAT",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "due_date",
+      "dtype": "STRING",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "status",
+      "dtype": "STRING",
+      "primary": false,
+      "unique": false
+    }
+  ]
+}

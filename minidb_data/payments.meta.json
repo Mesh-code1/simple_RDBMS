@@ -1,0 +1,35 @@
+{
+  "name": "payments",
+  "columns": [
+    {
+      "name": "id",
+      "dtype": "INT",
+      "primary": true,
+      "unique": false
+    },
+    {
+      "name": "user_id",
+      "dtype": "INT",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "bill_id",
+      "dtype": "INT",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "amount",
+      "dtype": "FLOAT",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "payment_date",
+      "dtype": "STRING",
+      "primary": false,
+      "unique": false
+    }
+  ]
+}
