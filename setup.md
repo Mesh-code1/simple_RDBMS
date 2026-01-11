@@ -3,8 +3,7 @@ python -m compileall minidb repl.py web_demo\app.py
 How to run the RDBMS
 --
 Start the app from repo root:
-py web_based_RDBMS_sql_repl\app.py
-
+py -m web_based_RDBMS_sql_repl.app
 
 1) REPL
 py repl.py

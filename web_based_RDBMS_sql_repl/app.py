@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import os
+import sys
 import json
 from typing import Any, Dict, List
 
 from flask import Flask, jsonify, render_template_string, request
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from minidb import MiniDB
 from minidb.errors import MiniDBError, ParseError
