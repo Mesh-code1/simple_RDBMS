@@ -15,10 +15,12 @@ from minidb.errors import MiniDBError, ParseError
 
 
 app = Flask(__name__)
-app.secret_key = "dev"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev")
 
 _DEFAULT_DB_NAME = "default"
-_DB_ROOT_DIR = "./web_based_RDBMS_sql_repl_databases"
+_DB_ROOT_DIR = os.environ.get("SQLREPL_DBS_ROOT", "./web_based_RDBMS_sql_repl_databases")
+_DEFAULT_DB_DIR = os.environ.get("SQLREPL_DEFAULT_DIR", "./web_based_RDBMS_sql_repl_data")
+_AUTH_DB_DIR = os.environ.get("SQLREPL_AUTH_DIR", "./web_based_RDBMS_sql_repl_auth")
 
 
 def _normalize_db_name(name: str) -> str:
@@ -41,7 +43,7 @@ def _safe_db_name(name: str) -> str:
 
 def _db_dir(name: str) -> str:
     if name == _DEFAULT_DB_NAME:
-        return "./web_based_RDBMS_sql_repl_data"
+        return _DEFAULT_DB_DIR
     return os.path.join(_DB_ROOT_DIR, name)
 
 
@@ -78,7 +80,7 @@ def _get_db() -> MiniDB:
     return MiniDB(_db_dir(name), enable_auth=False)
 
 
-_auth_db = MiniDB("./web_based_RDBMS_sql_repl_auth", enable_auth=True)
+_auth_db = MiniDB(_AUTH_DB_DIR, enable_auth=True)
 
 
 INDEX_HTML = """

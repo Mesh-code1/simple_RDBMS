@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: simple-rdbms-bills-demo
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn web_demo.app:app
+    envVars:
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: MINIDB_PERSIST_DIR
+        value: /var/data/minidb
+    disk:
+      name: bills-demo-data
+      mountPath: /var/data
+      sizeGB: 1
+
+  - type: web
+    name: simple-rdbms-sql-repl
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn web_based_RDBMS_sql_repl.app:app
+    envVars:
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: SQLREPL_DEFAULT_DIR
+        value: /var/data/sqlrepl_default
+      - key: SQLREPL_AUTH_DIR
+        value: /var/data/sqlrepl_auth
+      - key: SQLREPL_DBS_ROOT
+        value: /var/data/sqlrepl_databases
+    disk:
+      name: sql-repl-data
+      mountPath: /var/data
+      sizeGB: 1

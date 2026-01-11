@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import date
 
 from flask import Flask, redirect, render_template_string, request, session, url_for
@@ -9,9 +10,9 @@ from minidb.errors import MiniDBError
 
 
 app = Flask(__name__)
-app.secret_key = "dev"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev")
 
-db = MiniDB("./minidb_data", enable_auth=True)
+db = MiniDB(os.environ.get("MINIDB_PERSIST_DIR", "./minidb_data"), enable_auth=True)
 
 
 BASE_TEMPLATE = """
