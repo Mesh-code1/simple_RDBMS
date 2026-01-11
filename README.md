@@ -1,5 +1,10 @@
 # simple_RDBMS (MiniDB)
 
+[Live RDBMS](https://simple-rdbms-sql-repl.onrender.com)
+
+[Demo for web Application](https://simple-rdbms-bills-demo.onrender.com)
+
+
 A lightweight, educational Relational Database Management System (RDBMS) implemented in **pure Python (standard library)**, with:
 
 - A small **SQL subset** (regex-based parser)
