@@ -397,8 +397,8 @@ def dashboard():
                 <input name=\"amount\" placeholder=\"e.g. 1200.00\" required />
               </div>
               <div>
-                <label>Due date</label>
-                <input name=\"due_date\" placeholder=\"YYYY-MM-DD\" required />
+                <label>Due month</label>
+                <input name=\"due_month\" type=\"month\" required />
               </div>
             </div>
             <button class=\"btn btn-primary\" type=\"submit\">Add bill</button>
@@ -478,6 +478,10 @@ def add_bill():
     description = request.form.get("description", "").strip()
     amount = request.form.get("amount", "").strip()
     due_date = request.form.get("due_date", "").strip()
+    if due_date == "":
+        due_month = request.form.get("due_month", "").strip()
+        if due_month != "":
+            due_date = f"{due_month}-01"
 
     bill_id = db._next_int_id("bills")
     db.execute(

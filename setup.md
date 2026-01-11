@@ -10,3 +10,7 @@ py -m pip install -r requirements.txt
 
 Run:
 py -m web_demo.app
+
+After code updates
+Run:
+py -m py_compile web_demo\app.py
