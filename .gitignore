@@ -1,0 +1,13 @@
+minidb_data/
+**/minidb_data/
+web_based_RDBMS_sql_repl_data/
+**/web_based_RDBMS_sql_repl_data/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.env
+.vscode/
+.DS_Store

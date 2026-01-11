@@ -1,6 +1,11 @@
 python -m compileall minidb repl.py web_demo\app.py
 
-How to run
+How to run the RDBMS
+--
+Start the app from repo root:
+py web_based_RDBMS_sql_repl\app.py
+
+
 1) REPL
 py repl.py
 
@@ -8,7 +13,7 @@ py repl.py
 Install Flask:
 py -m pip install -r requirements.txt
 
-Run:
+Run web app:
 py -m web_demo.app
 
 After code updates
