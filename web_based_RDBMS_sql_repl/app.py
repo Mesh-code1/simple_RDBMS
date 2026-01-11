@@ -225,9 +225,73 @@ INDEX_HTML = """
               <h2>SQL Script</h2>
               <div class=\"muted\">Supports multiple statements separated by <code>;</code></div>
             </div>
-            <textarea id=\"sql\">CREATE TABLE bills (id INT PRIMARY, description STRING, amount FLOAT);
-INSERT INTO bills (id, description, amount) VALUES (1, 'Rent', 1200.0);
-SELECT * FROM bills;
+            <textarea id=\"sql\">-- MiniDB SQL Workshop (run step-by-step)
+-- Supported: CREATE TABLE, INSERT, SELECT, SELECT JOIN, UPDATE, DELETE
+-- Types: INT, STRING, FLOAT
+-- Constraints: PRIMARY, UNIQUE
+
+-- 1) CREATE TABLES (run once)
+CREATE TABLE customers (id INT PRIMARY UNIQUE, name STRING, email STRING UNIQUE);
+CREATE TABLE products (id INT PRIMARY UNIQUE, name STRING UNIQUE, price FLOAT);
+CREATE TABLE orders (id INT PRIMARY UNIQUE, customer_id INT, product_id INT, qty INT, total FLOAT);
+
+-- 2) SEED DATA (INSERT)
+INSERT INTO customers (id, name, email) VALUES (1, 'Amina', 'amina@example.com');
+INSERT INTO customers (id, name, email) VALUES (2, 'Omar', 'omar@example.com');
+
+INSERT INTO products (id, name, price) VALUES (10, 'Keyboard', 45.50);
+INSERT INTO products (id, name, price) VALUES (11, 'Mouse', 18.00);
+INSERT INTO products (id, name, price) VALUES (12, 'Monitor', 150.00);
+
+-- Orders (total is precomputed here; MiniDB doesn't support expressions)
+INSERT INTO orders (id, customer_id, product_id, qty, total) VALUES (100, 1, 10, 2, 91.00);
+INSERT INTO orders (id, customer_id, product_id, qty, total) VALUES (101, 1, 11, 1, 18.00);
+INSERT INTO orders (id, customer_id, product_id, qty, total) VALUES (102, 2, 12, 1, 150.00);
+
+-- 3) BASIC SELECTS
+SELECT * FROM customers;
+SELECT * FROM products;
+SELECT * FROM orders;
+
+-- 4) WHERE filters (=, >, <)
+SELECT * FROM products WHERE price > 20;
+SELECT * FROM orders WHERE qty = 1;
+SELECT * FROM orders WHERE total < 100;
+
+-- 5) UNIQUE constraint demo (this should ERROR: duplicate email)
+-- Run this statement alone to see the constraint enforcement.
+INSERT INTO customers (id, name, email) VALUES (3, 'DuplicateEmail', 'omar@example.com');
+
+-- 6) JOIN demo (only one JOIN supported per SELECT)
+-- Join orders with customers
+SELECT * FROM orders JOIN customers ON customer_id = id;
+-- Join orders with products
+SELECT * FROM orders JOIN products ON product_id = id;
+
+-- 7) UPDATE (CRUD)
+UPDATE customers SET name='Amina M.' WHERE id=1;
+UPDATE products SET price=49.99 WHERE id=10;
+UPDATE orders SET qty=3, total=136.50 WHERE id=100;
+
+-- 8) DELETE (CRUD)
+DELETE FROM orders WHERE id=101;
+SELECT * FROM orders;
+
+-- 9) BASIC "INDEX" behavior demo (MiniDB uses UNIQUE columns as indexes)
+-- These queries use equality on UNIQUE columns.
+SELECT * FROM customers WHERE email = 'amina@example.com';
+SELECT * FROM products WHERE name = 'Keyboard';
+
+-- 10) CLEANUP (remove the seeded data)
+-- Note: DROP TABLE is not supported; we delete rows instead.
+DELETE FROM orders;
+DELETE FROM products;
+DELETE FROM customers;
+
+-- 11) Verify empty
+SELECT * FROM customers;
+SELECT * FROM products;
+SELECT * FROM orders;
 </textarea>
           </div>
 
