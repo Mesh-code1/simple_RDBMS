@@ -4,6 +4,7 @@ How to run the RDBMS
 --
 Start the app from repo root:
 py -m web_based_RDBMS_sql_repl.app
+Opens on: http://127.0.0.1:5001/
 
 1) REPL
 py repl.py
