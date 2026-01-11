@@ -3,9 +3,10 @@ from __future__ import annotations
 import os
 import sys
 import json
+import re
 from typing import Any, Dict, List
 
-from flask import Flask, jsonify, render_template_string, request
+from flask import Flask, jsonify, render_template_string, request, session
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -14,8 +15,59 @@ from minidb.errors import MiniDBError, ParseError
 
 
 app = Flask(__name__)
+app.secret_key = "dev"
 
-db = MiniDB("./web_based_RDBMS_sql_repl_data", enable_auth=False)
+_DEFAULT_DB_NAME = "default"
+_DB_ROOT_DIR = "./web_based_RDBMS_sql_repl_databases"
+
+
+def _safe_db_name(name: str) -> str:
+    s = (name or "").strip()
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", s):
+        raise ValueError("Invalid database name")
+    return s
+
+
+def _db_dir(name: str) -> str:
+    if name == _DEFAULT_DB_NAME:
+        return "./web_based_RDBMS_sql_repl_data"
+    return os.path.join(_DB_ROOT_DIR, name)
+
+
+def _current_db_name() -> str:
+    v = session.get("current_db")
+    if isinstance(v, str) and v.strip():
+        return v
+    return _DEFAULT_DB_NAME
+
+
+def _set_current_db(name: str) -> None:
+    session["current_db"] = name
+
+
+def _list_databases() -> List[str]:
+    out = [_DEFAULT_DB_NAME]
+    if os.path.isdir(_DB_ROOT_DIR):
+        for fn in os.listdir(_DB_ROOT_DIR):
+            p = os.path.join(_DB_ROOT_DIR, fn)
+            if os.path.isdir(p) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", fn):
+                out.append(fn)
+    return sorted(set(out))
+
+
+def _require_login_for_db(name: str) -> None:
+    if name == _DEFAULT_DB_NAME:
+        return
+    if not session.get("session_token"):
+        raise MiniDBError("Login required for non-default databases")
+
+
+def _get_db() -> MiniDB:
+    name = _current_db_name()
+    return MiniDB(_db_dir(name), enable_auth=False)
+
+
+_auth_db = MiniDB("./web_based_RDBMS_sql_repl_auth", enable_auth=True)
 
 
 INDEX_HTML = """
@@ -201,20 +253,52 @@ INDEX_HTML = """
         color: var(--text);
         outline: none;
       }
+      .terminal {
+        display: grid;
+        gap: 10px;
+        padding: 12px 14px;
+      }
+      .terminal-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+      }
+      .terminal-input {
+        width: 100%;
+        padding: 11px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text);
+        outline: none;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 13px;
+      }
+      .help-body {
+        padding: 12px 14px;
+        color: var(--text);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .help-body code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     </style>
   </head>
   <body>
-    <div class=\"container\">
-      <div class=\"topbar\">
-        <div class=\"brand\">
+    <div class="container">
+      <div class="topbar">
+        <div class="brand">
           <strong>Web-based MiniDB SQL REPL</strong>
           <span>Run SQL scripts (CREATE/INSERT/SELECT/JOIN/UPDATE/DELETE) with JSON persistence</span>
         </div>
-        <div class=\"actions\">
-          <span class=\"pill\" id=\"statusPill\">Idle</span>
-          <button class=\"btn\" id=\"btnFindReplace\" type=\"button\">Find & Replace</button>
-          <button class=\"btn\" id=\"btnRefresh\" type=\"button\">Refresh Data</button>
-          <button class=\"btn btn-primary\" id=\"btnRun\" type=\"button\">Run</button>
+        <div class="actions">
+          <span class="pill" id="dbPill">DB: default</span>
+          <span class="pill" id="userPill">User: anonymous</span>
+          <span class="pill" id="statusPill">Idle</span>
+          <button class="btn" id="btnHelp" type="button">User Guide</button>
+          <button class="btn" id="btnFindReplace" type="button">Find & Replace</button>
+          <button class="btn" id="btnRefresh" type="button">Refresh Data</button>
+          <button class="btn btn-primary" id="btnRun" type="button">Run</button>
         </div>
       </div>
 
@@ -229,6 +313,10 @@ INDEX_HTML = """
 -- Supported: CREATE TABLE, INSERT, SELECT, SELECT JOIN, UPDATE, DELETE
 -- Types: INT, STRING, FLOAT
 -- Constraints: PRIMARY, UNIQUE
+
+-- Database commands (SQL-style)
+-- CREATE DATABASE mydb;
+-- USE mydb;
 
 -- 1) CREATE TABLES (run once)
 CREATE TABLE customers (id INT PRIMARY UNIQUE, name STRING, email STRING UNIQUE);
@@ -323,16 +411,30 @@ SELECT * FROM employees;
               <h2>Live Data</h2>
               <div class="muted">Tables + sample rows</div>
             </div>
-            <div class=\"output\" id=\"live\">Loading…</div>
+            <div class="output" id="live">Loading…</div>
           </div>
         </div>
 
-        <div class=\"panel\">
-          <div class=\"panel-header\">
-            <h2>Output</h2>
-            <div class=\"muted\">Results / errors</div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Terminal</h2>
+            <div class="muted">Commands: <code>:help</code>, <code>:register</code>, <code>:login</code>, <code>:createdb</code>, <code>:use</code></div>
           </div>
-          <div class=\"output\" id=\"out\">Run a query to see results.</div>
+          <div class="terminal">
+            <div class="terminal-row">
+              <input class="terminal-input" id="term" placeholder=":help" />
+              <button class="btn btn-primary" id="btnTerm" type="button">Run</button>
+            </div>
+            <div class="output" id="termOut">Type :help to see commands.</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Output</h2>
+            <div class="muted">Results / errors</div>
+          </div>
+          <div class="output" id="out">Run a query to see results.</div>
         </div>
       </div>
     </div>
@@ -364,11 +466,57 @@ SELECT * FROM employees;
       </div>
     </div>
 
+    <div class=\"modal\" id=\"helpModal\">
+      <div class=\"modal-card\">
+        <div class=\"panel-header\" style=\"border-bottom:none; padding: 0 0 10px\">
+          <h2>User Guide</h2>
+          <div class=\"actions\">
+            <button class=\"btn\" id=\"btnHelpClose\" type=\"button\">Close</button>
+          </div>
+        </div>
+        <div class=\"help-body\">
+          <div class=\"pill\" style=\"display:inline-block; margin-bottom:10px\">SQL Subset</div>
+          <div>
+            <div><code>CREATE TABLE t (id INT PRIMARY UNIQUE, name STRING, price FLOAT);</code></div>
+            <div><code>INSERT INTO t (id, name, price) VALUES (1, 'A', 9.99);</code></div>
+            <div><code>SELECT * FROM t;</code></div>
+            <div><code>SELECT * FROM t WHERE id = 1;</code></div>
+            <div><code>UPDATE t SET price=10.5 WHERE id=1;</code></div>
+            <div><code>DELETE FROM t WHERE id=1;</code></div>
+            <div><code>DROP TABLE t;</code></div>
+            <div style=\"margin-top:10px\"><code>SELECT * FROM a JOIN b ON a_id = id;</code></div>
+          </div>
+
+          <div class=\"pill\" style=\"display:inline-block; margin:14px 0 10px\">Database (SQL-style)</div>
+          <div>
+            <div><code>CREATE DATABASE mydb;</code></div>
+            <div><code>USE mydb;</code></div>
+          </div>
+
+          <div class=\"pill\" style=\"display:inline-block; margin:14px 0 10px\">Terminal Commands</div>
+          <div>
+            <div><code>:help</code> show this guide</div>
+            <div><code>:register username password [email]</code> create user</div>
+            <div><code>:login username password</code> login</div>
+            <div><code>:logout</code> logout</div>
+            <div><code>:whoami</code> show current user</div>
+            <div><code>:dbs</code> list databases</div>
+            <div><code>:createdb name</code> create database (requires login)</div>
+            <div><code>:use name</code> switch database (requires login for non-default)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script>
       const elSql = document.getElementById('sql');
       const elOut = document.getElementById('out');
       const elLive = document.getElementById('live');
       const pill = document.getElementById('statusPill');
+      const dbPill = document.getElementById('dbPill');
+      const userPill = document.getElementById('userPill');
+      const elTerm = document.getElementById('term');
+      const elTermOut = document.getElementById('termOut');
 
       function setStatus(text) {
         pill.textContent = text;
@@ -406,6 +554,8 @@ SELECT * FROM employees;
       async function refreshState() {
         const resp = await fetch('/api/state');
         const data = await resp.json();
+        dbPill.textContent = `DB: ${data.current_db || 'default'}`;
+        userPill.textContent = `User: ${data.username || 'anonymous'}`;
         const tables = data.tables || [];
         if (tables.length === 0) {
           elLive.textContent = 'No tables yet.';
@@ -438,6 +588,26 @@ SELECT * FROM employees;
         const results = data.results || [];
         const combined = results.map((r, idx) => `<div style="margin-bottom:12px"><div class="muted" style="margin-bottom:6px">Statement ${idx+1}</div>${renderResult(r)}</div>`).join('');
         elOut.innerHTML = combined || '<div class="muted">No output</div>';
+        await refreshState();
+        setStatus('Done');
+      }
+
+      async function runTerminal() {
+        const cmd = (elTerm.value || '').trim();
+        if (!cmd) return;
+        setStatus('Running…');
+        const resp = await fetch('/api/terminal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cmd })
+        });
+        const data = await resp.json();
+        if (data && data.message) {
+          elTermOut.textContent = data.message;
+        } else {
+          elTermOut.textContent = 'OK';
+        }
+        elTerm.value = '';
         await refreshState();
         setStatus('Done');
       }
@@ -483,6 +653,24 @@ SELECT * FROM employees;
 
       document.getElementById('btnRun').addEventListener('click', runSql);
       document.getElementById('btnRefresh').addEventListener('click', refreshState);
+
+      document.getElementById('btnTerm').addEventListener('click', runTerminal);
+      elTerm.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          runTerminal();
+        }
+      });
+
+      // Help
+      const helpModal = document.getElementById('helpModal');
+      const btnHelp = document.getElementById('btnHelp');
+      const btnHelpClose = document.getElementById('btnHelpClose');
+      function openHelp() { helpModal.classList.add('open'); }
+      function closeHelp() { helpModal.classList.remove('open'); }
+      btnHelp.addEventListener('click', openHelp);
+      btnHelpClose.addEventListener('click', closeHelp);
+      helpModal.addEventListener('click', (e) => { if (e.target === helpModal) closeHelp(); });
 
       refreshState().then(() => setStatus('Ready'));
     </script>
@@ -537,6 +725,42 @@ def _result_payload(res: Any) -> Dict[str, Any]:
     return {"kind": "message", "message": str(res)}
 
 
+def _handle_sql_db_statement(stmt: str) -> Any:
+    s = stmt.strip().rstrip(";")
+    upper = s.upper()
+    if upper.startswith("CREATE DATABASE "):
+        raw = s[len("CREATE DATABASE ") :].strip()
+        name = _safe_db_name(raw)
+        _require_login_for_db(name)
+        os.makedirs(_db_dir(name), exist_ok=True)
+        return 1
+    if upper.startswith("USE "):
+        raw = s[len("USE ") :].strip()
+        name = _safe_db_name(raw)
+        _require_login_for_db(name)
+        os.makedirs(_db_dir(name), exist_ok=True)
+        _set_current_db(name)
+        return 1
+    return None
+
+
+def _terminal_help() -> str:
+    return "\n".join(
+        [
+            "Terminal commands:",
+            ":help",
+            ":register <username> <password> [email]",
+            ":login <username> <password>",
+            ":logout",
+            ":whoami",
+            ":dbs",
+            ":createdb <name>",
+            ":use <name>",
+            "SQL-style database commands (in SQL editor): CREATE DATABASE <name>;  USE <name>;",
+        ]
+    )
+
+
 @app.get("/")
 def index():
     return render_template_string(INDEX_HTML)
@@ -552,6 +776,12 @@ def api_execute():
 
     for stmt in statements:
         try:
+            maybe = _handle_sql_db_statement(stmt)
+            if maybe is not None:
+                results.append(_result_payload(maybe))
+                continue
+
+            db = _get_db()
             res = db.execute(stmt)
             results.append(_result_payload(res))
         except (MiniDBError, ParseError) as e:
@@ -564,6 +794,7 @@ def api_execute():
 
 @app.get("/api/state")
 def api_state():
+    db = _get_db()
     tables = []
     for name in db.catalog.list_tables():
         t = db.catalog.get_table(name)
@@ -573,7 +804,85 @@ def api_state():
             all_rows = []
         sample = all_rows[:25]
         tables.append({"name": name, "row_count": len(all_rows), "sample": sample})
-    return jsonify({"tables": tables})
+    username = session.get("username") if isinstance(session.get("username"), str) else None
+    return jsonify({"tables": tables, "current_db": _current_db_name(), "username": username})
+
+
+@app.post("/api/terminal")
+def api_terminal():
+    data = request.get_json(silent=True) or {}
+    cmd = str(data.get("cmd") or "").strip()
+    if cmd == "":
+        return jsonify({"message": ""})
+
+    if not cmd.startswith(":"):
+        return jsonify({"message": "Terminal commands must start with ':' (try :help)"})
+
+    parts = cmd[1:].split()
+    op = (parts[0] if parts else "").lower()
+
+    try:
+        if op in ("h", "help"):
+            return jsonify({"message": _terminal_help()})
+
+        if op == "register":
+            if len(parts) < 3:
+                return jsonify({"message": "Usage: :register <username> <password> [email]"})
+            username = parts[1]
+            password = parts[2]
+            email = parts[3] if len(parts) >= 4 else ""
+            uid = _auth_db.register_user(username=username, password=password, email=email, is_admin=0)
+            return jsonify({"message": f"User created (id={uid}). You can now :login {username} <password>"})
+
+        if op == "login":
+            if len(parts) < 3:
+                return jsonify({"message": "Usage: :login <username> <password>"})
+            username = parts[1]
+            password = parts[2]
+            token = _auth_db.login(username=username, password=password)
+            session["session_token"] = token
+            session["username"] = username
+            return jsonify({"message": f"Logged in as {username}"})
+
+        if op == "logout":
+            token = session.get("session_token")
+            try:
+                _auth_db.auth.logout(token if isinstance(token, str) else None)
+            finally:
+                session.pop("session_token", None)
+                session.pop("username", None)
+                session.pop("current_db", None)
+            return jsonify({"message": "Logged out"})
+
+        if op == "whoami":
+            username = session.get("username") if isinstance(session.get("username"), str) else None
+            if username:
+                return jsonify({"message": f"User: {username}"})
+            return jsonify({"message": "User: anonymous"})
+
+        if op == "dbs":
+            return jsonify({"message": "\n".join(_list_databases())})
+
+        if op == "createdb":
+            if len(parts) < 2:
+                return jsonify({"message": "Usage: :createdb <name>"})
+            name = _safe_db_name(parts[1])
+            _require_login_for_db(name)
+            os.makedirs(_db_dir(name), exist_ok=True)
+            return jsonify({"message": f"Database created: {name}"})
+
+        if op == "use":
+            if len(parts) < 2:
+                return jsonify({"message": "Usage: :use <name>"})
+            name = _safe_db_name(parts[1])
+            _require_login_for_db(name)
+            os.makedirs(_db_dir(name), exist_ok=True)
+            _set_current_db(name)
+            return jsonify({"message": f"Using database: {name}"})
+
+        return jsonify({"message": "Unknown command (try :help)"})
+    except (MiniDBError, ValueError) as e:
+        return jsonify({"message": str(e)})
 
 
 if __name__ == "__main__":

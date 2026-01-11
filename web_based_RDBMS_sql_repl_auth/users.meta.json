@@ -1,0 +1,35 @@
+{
+  "name": "users",
+  "columns": [
+    {
+      "name": "id",
+      "dtype": "INT",
+      "primary": true,
+      "unique": true
+    },
+    {
+      "name": "username",
+      "dtype": "STRING",
+      "primary": false,
+      "unique": true
+    },
+    {
+      "name": "password_hash",
+      "dtype": "STRING",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "email",
+      "dtype": "STRING",
+      "primary": false,
+      "unique": false
+    },
+    {
+      "name": "is_admin",
+      "dtype": "INT",
+      "primary": false,
+      "unique": false
+    }
+  ]
+}
