@@ -92,6 +92,10 @@ class MiniDB:
         if self.enable_auth:
             is_admin = self._is_admin(session.user_id)
 
+        if t == "DROP_TABLE":
+            self.catalog.drop_table(ast["table"])
+            return 1
+
         if t == "CREATE_TABLE":
             cols = [
                 Column(

@@ -65,6 +65,13 @@ def parse(sql: str) -> Dict[str, Any]:
         raise ParseError("Empty SQL")
 
     upper = sql.upper()
+    if upper.startswith("DROP TABLE "):
+        m = re.match(r"(?is)^DROP\s+TABLE\s+([A-Za-z_][A-Za-z0-9_]*)$", sql)
+        if not m:
+            raise ParseError("Invalid DROP TABLE")
+        table = _parse_identifier(m.group(1))
+        return {"type": "DROP_TABLE", "table": table}
+
     if upper.startswith("CREATE TABLE "):
         m = re.match(r"(?is)^CREATE\s+TABLE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)$", sql)
         if not m:

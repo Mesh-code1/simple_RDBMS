@@ -303,14 +303,14 @@ SELECT * FROM employees WHERE email = 'e7@corp.com';
 -- Non-indexed lookup (dept is NOT UNIQUE): this requires scanning matching rows.
 SELECT * FROM employees WHERE dept = 'ENG';
 
--- 10) CLEANUP (remove the seeded data)
--- Note: DROP TABLE is not supported; we delete rows instead.
-DELETE FROM employees;
-DELETE FROM orders;
-DELETE FROM products;
-DELETE FROM customers;
+-- 10) CLEANUP (remove the seeded data + tables)
+-- You can either DELETE rows or DROP TABLE. Here we DROP TABLE.
+DROP TABLE employees;
+DROP TABLE orders;
+DROP TABLE products;
+DROP TABLE customers;
 
--- 11) Verify empty
+-- 11) Verify tables are gone (these should ERROR with "Table not found")
 SELECT * FROM customers;
 SELECT * FROM products;
 SELECT * FROM orders;

@@ -270,6 +270,18 @@ class Catalog:
     def has_table(self, name: str) -> bool:
         return name in self._tables
 
+    def drop_table(self, name: str) -> None:
+        if name not in self._tables:
+            raise SchemaError(f"Table not found: {name}")
+        t = self._tables[name]
+        meta_path = os.path.join(self.persistence_dir, f"{t.name}.meta.json")
+        data_path = os.path.join(self.persistence_dir, f"{t.name}.rows.json")
+        if os.path.exists(meta_path):
+            os.remove(meta_path)
+        if os.path.exists(data_path):
+            os.remove(data_path)
+        del self._tables[name]
+
     def get_table(self, name: str) -> Table:
         if name not in self._tables:
             raise SchemaError(f"Table not found: {name}")
