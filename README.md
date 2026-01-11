@@ -1,8 +1,10 @@
 # simple_RDBMS (MiniDB)
 
-[Live RDBMS](https://simple-rdbms-sql-repl.onrender.com)
+## Live Demos
 
-[Demo for web Application](https://simple-rdbms-bills-demo.onrender.com)
+- <a href="https://simple-rdbms-sql-repl.onrender.com" target="_blank" rel="noopener noreferrer">Live RDBMS (SQL REPL)</a>
+- <a href="https://simple-rdbms-bills-demo.onrender.com" target="_blank" rel="noopener noreferrer">Billing Web App Demo</a>
+
 
 
 A lightweight, educational Relational Database Management System (RDBMS) implemented in **pure Python (standard library)**, with:
